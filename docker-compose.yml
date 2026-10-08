@@ -1,0 +1,14 @@
+# Alternative to scripts/db-local.sh: `docker compose up -d`
+services:
+  db:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: petal
+      POSTGRES_PASSWORD: petal
+      POSTGRES_DB: petal
+    ports:
+      - "127.0.0.1:54329:5432"
+    volumes:
+      - petal-db:/var/lib/postgresql
+volumes:
+  petal-db:
