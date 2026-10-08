@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Cormorant_Garamond, Jost, Pinyon_Script } from "next/font/google";
+import localFont from "next/font/local";
 import { site } from "@/config/site";
 import { CartProvider } from "@/components/cart/CartProvider";
 import { CartDrawer } from "@/components/cart/CartDrawer";
@@ -9,17 +9,39 @@ import { JsonLd } from "@/components/seo/JsonLd";
 import { floristJsonLd, ogImage } from "@/lib/seo";
 import "./globals.css";
 
-const cormorant = Cormorant_Garamond({
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600"],
-  style: ["normal", "italic"],
+// Fonts are bundled in ./fonts (Google Fonts via Fontsource, OFL) so builds never depend on
+// downloading from Google, which can fail on CI/Vercel.
+const cormorant = localFont({
+  src: [
+    { path: "./fonts/cormorant-garamond-latin-300-normal.woff2", weight: "300", style: "normal" },
+    { path: "./fonts/cormorant-garamond-latin-300-italic.woff2", weight: "300", style: "italic" },
+    { path: "./fonts/cormorant-garamond-latin-400-normal.woff2", weight: "400", style: "normal" },
+    { path: "./fonts/cormorant-garamond-latin-400-italic.woff2", weight: "400", style: "italic" },
+    { path: "./fonts/cormorant-garamond-latin-500-normal.woff2", weight: "500", style: "normal" },
+    { path: "./fonts/cormorant-garamond-latin-500-italic.woff2", weight: "500", style: "italic" },
+    { path: "./fonts/cormorant-garamond-latin-600-normal.woff2", weight: "600", style: "normal" },
+    { path: "./fonts/cormorant-garamond-latin-600-italic.woff2", weight: "600", style: "italic" },
+  ],
   variable: "--font-cormorant",
   display: "swap",
+  fallback: ["Times New Roman", "serif"],
 });
 
-const jost = Jost({ subsets: ["latin"], variable: "--font-jost", display: "swap" });
+const jost = localFont({
+  src: "./fonts/jost-latin-wght-normal.woff2",
+  weight: "100 900",
+  variable: "--font-jost",
+  display: "swap",
+  fallback: ["ui-sans-serif", "sans-serif"],
+});
 
-const pinyon = Pinyon_Script({ subsets: ["latin"], weight: "400", variable: "--font-pinyon", display: "swap" });
+const pinyon = localFont({
+  src: "./fonts/pinyon-script-latin-400-normal.woff2",
+  weight: "400",
+  variable: "--font-pinyon",
+  display: "swap",
+  fallback: ["cursive"],
+});
 
 export const metadata: Metadata = {
   metadataBase: new URL(site.url),
