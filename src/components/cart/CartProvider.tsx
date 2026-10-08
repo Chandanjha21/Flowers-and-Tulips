@@ -3,8 +3,27 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { AddOn, CartLine } from "@/types";
 import { api, ApiError, type ApiCart } from "@/lib/api";
+import { localCart, type LocalAddInput } from "@/lib/local-cart";
+import { FRONTEND_ONLY } from "@/lib/mode";
 
-type AddInput = Omit<CartLine, "lineId" | "name" | "image" | "unitPrice">;
+type AddInput = Omit<CartLine, "lineId" | "name" | "image" | "unitPrice"> & {
+  /** Display data; only used in frontend-only mode (the server prices the real cart). */
+  display: LocalAddInput["display"];
+};
+
+/** Where the bag lives: the server API, or the browser in frontend-only (demo) mode. */
+const remote = {
+  get: () => api<ApiCart>("/api/cart"),
+  add: (l: AddInput) =>
+    api<ApiCart>("/api/cart/items", {
+      method: "POST",
+      body: { slug: l.slug, size: l.size, quantity: l.quantity, addOns: l.addOns, cardMessage: l.cardMessage, deliveryDate: l.deliveryDate },
+    }),
+  update: (id: string, quantity: number) => api<ApiCart>(`/api/cart/items/${id}`, { method: "PATCH", body: { quantity } }),
+  remove: (id: string) => api<ApiCart>(`/api/cart/items/${id}`, { method: "DELETE" }),
+  clear: () => api<ApiCart>("/api/cart", { method: "DELETE" }),
+};
+const store = FRONTEND_ONLY ? localCart : remote;
 
 interface CartContextValue {
   lines: CartLine[];
@@ -55,7 +74,7 @@ function toLines(cart: ApiCart): CartLine[] {
   }));
 }
 
-/** Cart state lives on the server, tied to an anonymous httpOnly session cookie; this mirrors it. */
+/** Cart state lives on the server (anonymous httpOnly session cookie), or in the browser in frontend-only mode. */
 export function CartProvider({ children }: { children: ReactNode }) {
   const [cart, setCart] = useState<ApiCart | null>(null);
   const [isOpen, setOpen] = useState(false);
@@ -69,15 +88,15 @@ export function CartProvider({ children }: { children: ReactNode }) {
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Could not update your bag. Please try again.");
       // Resync so the UI reflects what the server actually has.
-      api<ApiCart>("/api/cart").then(setCart, () => {});
+      store.get().then(setCart, () => {});
     }
   }, []);
 
-  const refresh = useCallback(() => run(() => api<ApiCart>("/api/cart")), [run]);
+  const refresh = useCallback(() => run(() => store.get()), [run]);
 
   useEffect(() => {
     let alive = true;
-    api<ApiCart>("/api/cart").then(
+    store.get().then(
       (c) => alive && setCart(c),
       () => alive && setCart({ items: [], count: 0, subtotalCents: 0, deliveryFeeCents: 0, totalCents: 0 }),
     );
@@ -89,10 +108,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const add = useCallback(async (line: AddInput) => {
     try {
       setError(null);
-      const next = await api<ApiCart>("/api/cart/items", {
-        method: "POST",
-        body: { slug: line.slug, size: line.size, quantity: line.quantity, addOns: line.addOns, cardMessage: line.cardMessage, deliveryDate: line.deliveryDate },
-      });
+      const next = await store.add(line);
       setCart(next);
       setOpen(true);
       return { ok: true as const };
@@ -104,15 +120,13 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const updateQuantity = useCallback(
     (lineId: string, quantity: number) =>
       run(() =>
-        quantity <= 0
-          ? api<ApiCart>(`/api/cart/items/${lineId}`, { method: "DELETE" })
-          : api<ApiCart>(`/api/cart/items/${lineId}`, { method: "PATCH", body: { quantity } }),
+        quantity <= 0 ? store.remove(lineId) : store.update(lineId, quantity),
       ),
     [run],
   );
-  const remove = useCallback((lineId: string) => run(() => api<ApiCart>(`/api/cart/items/${lineId}`, { method: "DELETE" })), [run]);
+  const remove = useCallback((lineId: string) => run(() => store.remove(lineId)), [run]);
   const clear = useCallback(async () => {
-    await run(() => api<ApiCart>("/api/cart", { method: "DELETE" }));
+    await run(() => store.clear());
     setGiftMessage("");
   }, [run]);
 

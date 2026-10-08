@@ -42,6 +42,12 @@ export function ProductPurchase({ product, addOns }: { product: Product; addOns:
           cardMessage: wantsCard && message.trim() ? message.trim() : undefined,
           deliveryDate: date,
           quantity: qty,
+          display: {
+            name: product.name,
+            image: product.images[0],
+            unitPrice: sizeInfo.price,
+            addOns: addOns.filter((a) => selected.includes(a.id)).map((a) => ({ id: a.id, name: a.name, price: a.price })),
+          },
         });
         setAdding(false);
         if (!res.ok) {

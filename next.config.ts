@@ -15,7 +15,12 @@ const securityHeaders = [
   },
 ];
 
+// No database configured -> build the site in frontend-only (demo) mode. See src/lib/mode.ts.
+const frontendOnly = process.env.NEXT_PUBLIC_FRONTEND_ONLY ?? (process.env.DATABASE_URL ? "0" : "1");
+if (frontendOnly === "1") console.log("▲ Frontend-only mode: no database or payments (set DATABASE_URL to enable the backend)");
+
 const nextConfig: NextConfig = {
+  env: { NEXT_PUBLIC_FRONTEND_ONLY: frontendOnly },
   poweredByHeader: false,
   // Native module; keep it out of the server bundle.
   serverExternalPackages: ["@node-rs/argon2"],

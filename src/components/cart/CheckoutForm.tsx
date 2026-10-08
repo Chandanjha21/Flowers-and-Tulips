@@ -1,9 +1,13 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { site } from "@/config/site";
 import { api, ApiError } from "@/lib/api";
+import { FRONTEND_ONLY } from "@/lib/mode";
+import { checkoutSchema } from "@/lib/validation";
+import { DEMO_ORDER_KEY } from "./DemoConfirmation";
+import type { ConfirmationView } from "./Confirmation";
 import { isoDateFromToday } from "@/lib/format";
 import { FormSection, TextArea, TextField } from "@/components/forms/Field";
 import { Button, ButtonLink } from "@/components/ui/Button";
@@ -14,6 +18,7 @@ import { OrderSummary } from "./OrderSummary";
 
 export function CheckoutForm() {
   const cart = useCart();
+  const router = useRouter();
   const canceled = useSearchParams().get("canceled") === "1";
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<{ message: string; fields?: string[] } | null>(null);
@@ -43,16 +48,46 @@ export function CheckoutForm() {
         setError(null);
         const data = new FormData(e.currentTarget);
         const get = (k: string) => String(data.get(k) ?? "").trim();
+        const body = {
+          recipient: { name: get("r-name"), phone: get("r-phone"), addressLine1: get("r-address"), addressLine2: get("r-apt"), city: get("r-city"), zip: get("r-zip") },
+          delivery: { date: get("d-date"), window: get("d-window"), notes: get("d-notes") },
+          giftMessage: get("gift"),
+          sender: { name: get("s-name"), email: get("s-email"), phone: get("s-phone") },
+        };
+
+        if (FRONTEND_ONLY) {
+          // Demo: validate with the same rules as the server, then show a confirmation. No payment.
+          const parsed = checkoutSchema.safeParse(body);
+          if (!parsed.success) {
+            setSubmitting(false);
+            setError({ message: "Please check the highlighted details.", fields: parsed.error.issues.map((i) => i.path.join(".")) });
+            return;
+          }
+          const o = parsed.data;
+          const view: ConfirmationView = {
+            number: `FT-${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
+            state: "paid",
+            senderName: o.sender.name,
+            senderEmail: o.sender.email,
+            recipientName: o.recipient.name,
+            addressLines: [o.recipient.addressLine1, o.recipient.addressLine2].filter((l): l is string => !!l),
+            cityLine: `${o.recipient.city} ${o.recipient.zip}`,
+            deliveryDate: o.delivery.date,
+            giftMessage: o.giftMessage,
+            lines: cart.lines,
+            subtotal: cart.subtotal,
+            delivery: cart.deliveryFee,
+          };
+          try {
+            window.sessionStorage.setItem(DEMO_ORDER_KEY, JSON.stringify(view));
+          } catch {}
+          await cart.clear();
+          router.push("/checkout/confirmation");
+          return;
+        }
+
         try {
-          const { url } = await api<{ url: string }>("/api/checkout", {
-            method: "POST",
-            body: {
-              recipient: { name: get("r-name"), phone: get("r-phone"), addressLine1: get("r-address"), addressLine2: get("r-apt"), city: get("r-city"), zip: get("r-zip") },
-              delivery: { date: get("d-date"), window: get("d-window"), notes: get("d-notes") },
-              giftMessage: get("gift"),
-              sender: { name: get("s-name"), email: get("s-email"), phone: get("s-phone") },
-            },
-          });
+          const { url } = await api<{ url: string }>("/api/checkout", { method: "POST", body });
           // Hand off to Stripe's hosted payment page. Card details never touch our site.
           window.location.assign(url);
         } catch (err) {
@@ -99,9 +134,11 @@ export function CheckoutForm() {
         <FormSection title="Payment" step="04">
           <p className="flex items-start gap-3 text-sm text-muted sm:col-span-2">
             <Shield size={20} className="mt-0.5 shrink-0 text-sage-deep" />
-            You&rsquo;ll pay on Stripe&rsquo;s secure checkout page. We never see or store your card details.
+            {FRONTEND_ONLY
+              ? "This is a demonstration store. No payment is taken and no order is sent."
+              : "You\u2019ll pay on Stripe\u2019s secure checkout page. We never see or store your card details."}
           </p>
-          {process.env.NEXT_PUBLIC_DEMO_MODE === "1" ? (
+          {!FRONTEND_ONLY && process.env.NEXT_PUBLIC_DEMO_MODE === "1" ? (
             <p role="note" className="rounded-2xl bg-cream px-5 py-4 text-sm text-ink ring-1 ring-linen sm:col-span-2">
               <span className="eyebrow text-rose-deep">Demo store</span>
               <br />
@@ -121,7 +158,7 @@ export function CheckoutForm() {
             </div>
           ) : null}
           <Button type="submit" icon className="w-full" disabled={submitting || cart.hasIssues}>
-            {submitting ? "Opening secure payment…" : "Continue to payment"}
+            {FRONTEND_ONLY ? (submitting ? "Placing order…" : "Place demo order") : submitting ? "Opening secure payment…" : "Continue to payment"}
           </Button>
         </div>
       </aside>

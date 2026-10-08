@@ -5,12 +5,19 @@
  */
 import "server-only";
 import { colors, flowerTypes, occasions, priceRanges, productTypes, sizes, sortOptions } from "@/data/catalog";
-import { getActiveAddOns, getActiveProducts } from "@/server/services/catalog";
+import { addOns as mockAddOns } from "@/data/catalog";
+import { products as mockProducts } from "@/data/products";
+import { FRONTEND_ONLY } from "@/lib/mode";
+import { getActiveAddOns as dbAddOns, getActiveProducts as dbProducts } from "@/server/services/catalog";
 import { eventServices, weddingGallery } from "@/data/events";
 import { testimonials } from "@/data/testimonials";
 import { comparisonRows, generalFaqs, subscriptionFaqs, subscriptionPlans } from "@/data/subscriptions";
 import { team } from "@/data/team";
 import type { Product } from "@/types";
+
+// Frontend-only (demo) mode reads the bundled mock catalog instead of Postgres.
+const getActiveProducts = async (): Promise<Product[]> => (FRONTEND_ONLY ? mockProducts : dbProducts());
+const getActiveAddOns = async () => (FRONTEND_ONLY ? mockAddOns : dbAddOns());
 
 export async function getProducts(): Promise<Product[]> {
   return getActiveProducts();

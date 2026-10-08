@@ -231,6 +231,10 @@ Notes:
 - `TRUST_PROXY=1` assumes Vercel or a proxy that overwrites `X-Forwarded-For`. Set `0` if the app is exposed directly, otherwise per-IP rate limits can be spoofed.
 - Maintenance (`/api/cron/maintenance`, every 15 min via `vercel.json`) reconciles checkouts whose webhook was missed and purges expired sessions. Needs `CRON_SECRET`.
 
+### Frontend-only (demo) mode
+
+With no `DATABASE_URL` at build time (or `NEXT_PUBLIC_FRONTEND_ONLY=1`), the site builds as a pure frontend demo: products come from `src/data`, the bag lives in `localStorage`, and checkout validates the form and shows a demo confirmation without taking payment. No env vars are needed, so it deploys to Vercel as-is. Adding `DATABASE_URL` (plus the Stripe keys) switches the real backend back on. See `src/lib/mode.ts`.
+
 ## 9. Production checklist
 
 - [ ] Managed Postgres with daily backups + PITR (Neon, Supabase, RDS). Use SSL (`sslmode=require`).
